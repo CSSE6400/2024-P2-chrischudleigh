@@ -24,14 +24,15 @@ def health():
 @api.route('/todos', methods=['GET'])
 def get_todos():
     """Return the list of todo items"""
-    todos = Todo.query.all() 
+    
+    
+    if request.args.get("completed"):
+        todos = Todo.query.filter_by(completed=True)
+    else:
+        todos = Todo.query.all() 
     result = [] 
     for todo in todos: 
-        if request.args.get('completed') == True:
-            if todo.completed: 
-                result.append(todo.to_dict()) 
-        else:
-            result.append(todo.to_dict()) 
+        result.append(todo.to_dict()) 
     return jsonify(result)
 
 @api.route('/todos/<int:todo_id>', methods=['GET'])
