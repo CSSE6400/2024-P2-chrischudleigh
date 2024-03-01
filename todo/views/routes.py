@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from todo.models import db 
 from todo.models.todo import Todo 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 api = Blueprint('api', __name__, url_prefix='/api/v1') 
 
@@ -24,12 +24,18 @@ def health():
 @api.route('/todos', methods=['GET'])
 def get_todos():
     """Return the list of todo items"""
+    args= []
+
+    if request.args.get("completed") == 'true':
+        args.append(Todo.completed == True)
+    if request.args.get("completed") == 'false':
+        args.append(Todo.completed == False)
+    if request.args.get("window"):
+        future_date = (datetime.now() + timedelta(days=int(request.args.get("window")))).strftime("%Y-%m-%dT00:00:00")
+        args.append(Todo.deadline_at < future_date)
+          
+    todos = Todo.query.filter(*args).all()
     
-    
-    if request.args.get("completed"):
-        todos = Todo.query.filter_by(completed=True)
-    else:
-        todos = Todo.query.all() 
     result = [] 
     for todo in todos: 
         result.append(todo.to_dict()) 
@@ -50,6 +56,12 @@ def get_todo(todo_id):
 def create_todo():
     """Create a new todo item and return the created item"""
     # do with database
+    for key in request.json:
+        if key not in {'title', 'description', 'completed', 'deadline_at', 'id'}:
+            return jsonify({'error': 'invalid json'}), 400
+
+    if 'title' not in request.json: 
+        return jsonify({'error': 'No title given'}), 400
     todo = Todo( 
       title=request.json.get('title'), 
       description=request.json.get('description'), 
@@ -74,10 +86,13 @@ def update_todo(todo_id):
       return jsonify({'error': 'Todo not found'}), 404 
     
     # check title given
-    if request.json.get('title', todo.title) != None:
-        todo.title = request.json.get('title', todo.title)
-    else:
+    if request.json.get('title') == None:
         return jsonify({'error': 'Todo requires title'}), 400
+    
+    if todo_id != todo.id:
+        return jsonify({'error': 'Todo id changed'}), 400
+    
+    todo.title = request.json.get('title', todo.title) 
     todo.description = request.json.get('description', todo.description) 
     todo.completed = request.json.get('completed', todo.completed) 
     todo.deadline_at = request.json.get('deadline_at', todo.deadline_at) 
